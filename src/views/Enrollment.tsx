@@ -12,160 +12,33 @@ const Enrollment = () => {
   const canvasRef = React.useRef<any>();
   const [hasVideo, setHasVideo] = useState<boolean>(false);
   const [hasPhoto, setHasPhoto] = useState<boolean>(false);
-  const [error, setError] = useState<boolean>(true);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [errorText, setErrorText] = useState("");
   const [modelsLoaded, setModelsLoaded] = React.useState<boolean>(false);
   const [isPhotoTaken, setIsPhotoTaken] = useState<boolean>(false);
   const [image, setImage] = useState<string>("");
   const [postError, setPostError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    age: "",
+    gender: "",
+  });
+
   const videoHeight = 1200;
   const videoWidth = 600;
   let photoTaken = false;
   let stream: MediaStream | null = null;
 
-  useEffect(() => {
-    loadModels();
-  }, [modelsLoaded]);
 
-  useEffect(() => {
-    console.log(isPhotoTaken);
-  }, [isPhotoTaken]);
-  const loadModels = async () => {
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
-      faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
-      faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-      faceapi.nets.faceExpressionNet.loadFromUri("/models"),
-    ]).then(() => {
-      setModelsLoaded(true);
-      // handleVideoOnPlay();
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
     });
   };
 
-  const getVideo = async () => {
-    setError(false);
-    try {
-      const userStream = await window.navigator.mediaDevices.getUserMedia({
-        video: { width: 600, height: 1200 },
-      });
-      stream = userStream;
-      let video = videoRef.current;
-      if (video) {
-        video.srcObject = userStream;
-        video.play();
-        setHasVideo(true);
-        setError(false);
-      }
-    } catch (err: any) {
-      console.log(err.message);
-      setError(true);
-      setErrorMsg(
-        err.message === "Requested device not found"
-          ? "No camera found"
-          : err.message
-      );
-    }
-  };
-
-  const handleVideoOnPlay = () => {
-    photoTaken = false;
-    // setIsPhotoTaken(false);
-    setInterval(async () => {
-      if (canvasRef && canvasRef.current) {
-        canvasRef.current.innerHTML = faceapi.createCanvasFromMedia(
-          videoRef.current!!
-        );
-        const displaySize = {
-          width: videoWidth,
-          height: videoHeight,
-        };
-
-        faceapi.matchDimensions(canvasRef.current, displaySize);
-
-        const detections = await faceapi
-          .detectAllFaces(
-            videoRef.current!!,
-            new faceapi.TinyFaceDetectorOptions()
-          )
-          .withFaceLandmarks()
-          .withFaceExpressions();
-
-        const resizedDetections = faceapi.resizeResults(
-          detections,
-          displaySize
-        );
-        // console.log(resizedDetections.length);
-
-        if (resizedDetections.length > 0 && !isPhotoTaken && !hasPhoto) {
-          // Check if any face has width >= 500 and height >= 900 pixels
-          const largeFaces = resizedDetections.filter(
-            (detection: any) =>
-              detection.detection.box.width >= 300 &&
-              detection.detection.box.height >= 500
-          );
-
-          if (largeFaces.length > 0) {
-            // If at least one face meets the criteria, call takePhoto function
-            setError(false);
-            takePhoto();
-            photoTaken = true;
-            // setIsPhotoTaken(true);
-          } else {
-            setError(true);
-            setErrorMsg("Move Closer");
-          }
-        }
-
-        canvasRef &&
-          canvasRef.current &&
-          canvasRef.current
-            .getContext("2d")
-            .clearRect(0, 0, videoWidth, videoHeight);
-        canvasRef &&
-          canvasRef.current &&
-          faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
-        // canvasRef &&
-        //   canvasRef.current &&
-        //   faceapi.draw.drawFaceLandmarks(canvasRef.current, resizedDetections);
-        // canvasRef &&
-        //   canvasRef.current &&
-        //   faceapi.draw.drawFaceExpressions(
-        //     canvasRef.current,
-        //     resizedDetections
-        //   );
-      }
-    }, 1000);
-  };
-
-  const takePhoto = () => {
-    console.log("taking photo");
-    const width = 600;
-    const height = width / (6 / 12);
-
-    let video = videoRef.current;
-    let photo = photoRef.current;
-
-    if (photo && video) {
-      photo.width = width;
-      photo.height = height;
-
-      let ctx = photo.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, width, height);
-        setHasPhoto(true);
-
-        // Get the data URL of the photo and set it in state
-
-        const dataURL = photo.toDataURL("image/png");
-        setImage(dataURL);
-
-        setIsPhotoTaken(true);
-        console.log("take", isPhotoTaken);
-      }
-    }
-  };
-
+ 
   const closePhoto = () => {
     let photo = photoRef.current;
     let ctx = photo?.getContext("2d");
@@ -175,178 +48,102 @@ const Enrollment = () => {
       setHasPhoto(false);
       setIsPhotoTaken(false);
       photoTaken = false;
+      setImage("");
       console.log("close", isPhotoTaken);
-      //   setFormActive(false);
     }
   };
 
-  const getUserInfo = async (data: Blob) => {
-    setPostError(""); // Clear error text
-    setLoading(true); // Show loading spinner
+  const sendData = async () => {
 
-    // Create form data
-    const formData = new FormData();
-    formData.append("file", data);
+    if (!formData.name || !formData.age || !formData.gender) {
+      setErrorText("Please fill out all fields.");
+      return;
+    }
+
+    if (!image) {
+      setErrorText("Please capture an image.");
+      return;
+    }
+
+    setPostError(""); 
+    setLoading(true);
+
+    const payload = {
+      name: formData.name,
+      age: formData.age,
+      gender: formData.gender,
+      image: image, 
+    };
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/user/upload`,
-        {
-          method: "POST",
-          //   headers: {
-          //     Authorization: `Bearer ${accessToken}`,
-          //   },
-          body: formData,
-        }
-      );
-      const data = await response.json();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/user/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      if (data.success === true) {
-        // Handle success (e.g., go to Add Profile page)
-        // setImageUrl(data.url);
-        // setFetchedUser(data.user_info);
-        // setCurrentUserModal(UserModals.UserDetails);
+      const result = await response.json();
 
+      if (result.success) {
+        console.log("Data sent successfully:", result);
         setLoading(false);
-        console.log(data);
+
+
+        setFormData({ name: "", age: "", gender: "" });
+        setImage("");
+        setHasPhoto(false);
       } else {
-        // Handle error response from server
-        const errorData = await response.json();
-        setPostError(errorData.message || "Failed to upload image.");
+        setPostError(result.message || "Failed to send data.");
         setLoading(false);
       }
     } catch (error) {
-      // Handle network or unexpected errors
-      console.log(error);
-      setPostError("An error occurred while uploading. Please try again.");
+      console.error("Error:", error);
+      setPostError("An error occurred while sending data.");
       setLoading(false);
-    } finally {
-      setLoading(false); // Hide loading spinner
     }
   };
 
-  const sendImage = async () => {
-    let photo = photoRef.current;
-    let ctx = photo?.getContext("2d");
-
-    if (photo && ctx) {
-      // let data = photo.toDataURL("image/png");
-      photo.toBlob((blob) => {
-        if (blob) {
-          // Send the Blob to the server
-          getUserInfo(blob);
-          console.log(blob);
-        } else {
-          console.error("Failed to convert canvas to Blob.");
-        }
-      }, "image/png");
-      // closePhoto();
-      // getUserInfo(data);
-      // console.log(data);
-      // setFormActive(true);
-    }
-  };
-
-  useEffect(() => {
-    if (modelsLoaded) {
-      getVideo();
-    }
-
-    return () => {
-      // Cleanup: stop the video stream
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-      setHasVideo(false); // Reset state
-    };
-  }, [videoRef, modelsLoaded]);
-
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    if (hasVideo) {
-      const handleVideoOnPlay = () => {
-        photoTaken = false;
-        // setIsPhotoTaken(false);
-        intervalId = setInterval(async () => {
-          if (canvasRef && canvasRef.current) {
-            canvasRef.current.innerHTML = faceapi.createCanvasFromMedia(
-              videoRef.current!!
-            );
-            const displaySize = {
-              width: videoWidth,
-              height: videoHeight,
-            };
-
-            faceapi.matchDimensions(canvasRef.current, displaySize);
-
-            const detections = await faceapi
-              .detectAllFaces(
-                videoRef.current!!,
-                new faceapi.TinyFaceDetectorOptions()
-              )
-              .withFaceLandmarks()
-              .withFaceExpressions();
-
-            const resizedDetections = faceapi.resizeResults(
-              detections,
-              displaySize
-            );
-            // console.log(resizedDetections.length);
-
-            if (resizedDetections.length > 0 && !isPhotoTaken && !hasPhoto) {
-              // Check if any face has width >= 500 and height >= 900 pixels
-              const largeFaces = resizedDetections.filter(
-                (detection: any) =>
-                  detection.detection.box.width >= 300 &&
-                  detection.detection.box.height >= 500
-              );
-
-              if (largeFaces.length > 0) {
-                // If at least one face meets the criteria, call takePhoto function
-                setError(false);
-                takePhoto();
-                photoTaken = true;
-                // setIsPhotoTaken(true);
-              } else if (largeFaces.length > 0 && isPhotoTaken) {
-                setError(true);
-                setErrorMsg("Photo Already Taken");
-              } else {
-                setError(true);
-                setErrorMsg("Move Closer");
-              }
-            }
-
-            canvasRef &&
-              canvasRef.current &&
-              canvasRef.current
-                .getContext("2d")
-                .clearRect(0, 0, videoWidth, videoHeight);
-            canvasRef &&
-              canvasRef.current &&
-              faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
-            // canvasRef &&
-            //   canvasRef.current &&
-            //   faceapi.draw.drawFaceLandmarks(
-            //     canvasRef.current,
-            //     resizedDetections
-            //   );
-            // canvasRef &&
-            //   canvasRef.current &&
-            //   faceapi.draw.drawFaceExpressions(
-            //     canvasRef.current,
-            //     resizedDetections
-            //   );
-          }
-        }, 1000);
-      };
-
-      handleVideoOnPlay();
-
-      return () => {
-        clearInterval(intervalId); // Clean up the interval when component unmounts
-      };
-    }
-  }, [isPhotoTaken, hasPhoto, hasVideo, error, errorMsg, videoRef, canvasRef]);
+  const renderForm = () => (
+    <div className="mt-4">
+      <h2 className="text-white text-lg font-semibold mb-2">Enter Your Details</h2>
+      <div className="flex flex-col gap-3">
+        <input
+          type="text"
+          name="name"
+          placeholder="Name"
+          value={formData.name}
+          onChange={handleInputChange}
+          className="p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400"
+        />
+        <input
+          type="number"
+          name="age"
+          placeholder="Age"
+          value={formData.age}
+          onChange={handleInputChange}
+          className="p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400"
+        />
+        <select
+          name="gender"
+          value={formData.gender}
+          onChange={handleInputChange}
+          className="p-2 rounded-lg bg-gray-700 text-white"
+        >
+          <option value="">Select Gender</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+      <button
+        onClick={sendData}
+        className="mt-4 bg-primary-green text-white px-4 py-2 rounded-lg"
+      >
+        Submit
+      </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col gap-4 p-4">
@@ -354,22 +151,20 @@ const Enrollment = () => {
         <p className="text-sm text-white text-center font-semibold">
           Please, center your head in the camera.
         </p>
-        {error && (
-          <p className="text-sm text-center text-red-600">{errorMsg}</p>
+        {errorText !== "" && (
+          <p className="text-sm text-red-600 px-4 text-center">{errorText}</p>
         )}
-
-        <div className="flex items-center justify-center  gap-4 pb-4">
+        <div className="flex items-center justify-center gap-4 pb-4">
           <div
             className={`${
               !hasVideo ? "border border-gray-400" : ""
-            } rounded-lg h-56 w-48 md:h-72 md:w-64 relative `}
+            } rounded-lg h-56 w-48 md:h-72 md:w-64 relative`}
           >
             {modelsLoaded && (
               <video
                 crossOrigin="anonymous"
                 ref={videoRef}
                 className="h-full w-full rounded-lg object-fill"
-                // onPlay={handleVideoOnPlay}
                 autoPlay
               ></video>
             )}
@@ -377,30 +172,15 @@ const Enrollment = () => {
             {modelsLoaded && (
               <canvas
                 ref={canvasRef}
-                className="absolute h-56 w-48 md:h-72 md:w-64 top-0 rounded-lg "
+                className="absolute h-56 w-48 md:h-72 md:w-64 top-0 rounded-lg"
               ></canvas>
             )}
           </div>
 
-          {/* {hasVideo && (
-            <div className="w-full flex items-start">
-              <div className="px-3">
-                <button
-                  onClick={takePhoto}
-                  className="bg-primary-green text-white px-4 py-2 rounded-lg"
-                >
-                  Take photo
-                </button>
-              </div>
-            </div>
-          )} */}
-          {/* result */}
-
           <div
             className={` ${
               !hasPhoto ? "hidden" : ""
-            }  h-56 w-48 md:h-72 md:w-64 relative`}
-            // className="h-56 w-48 md:h-72 md:w-64 relative"
+            } h-56 w-48 md:h-72 md:w-64 relative`}
           >
             {hasPhoto && image && (
               <div
@@ -423,22 +203,11 @@ const Enrollment = () => {
             <canvas ref={photoRef} className="w-full h-full hidden"></canvas>
           </div>
         </div>
-        {postError !== "" && (
-          <p className="text-sm text-red-600 px-4 text-center">{postError}</p>
+        {errorText !== "" && (
+          <p className="text-sm text-red-600 px-4 text-center">{errorText}</p>
         )}
-        {hasPhoto && (
-          //   !formActive &&
-          // <div className="w-full flex items-start">
-          //   <div className="px-3">
-          //     <button
-          //       onClick={sendImage}
-          //       className="bg-primary-green text-white px-4 py-2 rounded-lg"
-          //     >
-          //       Send Image
-          //     </button>
-          //   </div>
-          // </div>
 
+        {hasPhoto && (
           <div className="px-3 flex items-center gap-3 rounded-full bg-[#2F313399] py-1 w-[60%] justify-center mx-auto mb-4">
             <ActionButton2
               text="Recapture"
@@ -451,14 +220,13 @@ const Enrollment = () => {
             <ActionButton2
               text="Submit Image"
               textSmall
-              onClick={sendImage}
+              onClick={sendData}
               bgColor="[#14151680]"
               borderColor="[#14151680]"
             />
           </div>
         )}
-        <div className="hidden border border-[#14151680] bg-[#14151680]" />
-        <div className="hidden border border-transparent" />
+        {hasPhoto && renderForm()}
       </div>
 
       {/* loader */}
