@@ -1,0 +1,132 @@
+ENROLLMENT (FACE ENROLLMENT APP)
+
+Comprehensive single file documentation (plain text version). This mirrors DOCUMENTATION.md without Markdown syntax.
+
+TABLE OF CONTENTS
+1. Overview
+2. Key Features
+3. Architecture and Flow
+4. Tech Stack
+5. Project Structure
+6. Core Components
+7. Face Detection Logic
+8. Environment Variables
+9. Local Development
+10. Build and Production
+11. Extending the App
+12. Security and Privacy Notes
+13. Performance Considerations
+14. Troubleshooting
+15. Future Improvements
+16. FAQ
+17. Quick Reference
+
+OVERVIEW
+The application opens the user's webcam, loads face-api.js models from /models, continuously detects faces, and automatically captures an image when proximity thresholds are met. User can recapture or submit the image to a backend API configured via NEXT_PUBLIC_API_BASE_URL.
+
+KEY FEATURES
+Auto model loading from local static assets
+Continuous tiny face detector loop (1s interval)
+Automatic photo capture based on bounding box size threshold
+Preview with option to recapture or submit
+Image submission as multipart FormData
+User feedback messages for guidance and errors
+Minimal component based architecture ready for extension
+
+ARCHITECTURE AND FLOW
+User visits page -> Models load -> Camera permission -> Video stream -> Interval detection -> Threshold met -> Photo captured -> User chooses Recapture or Submit -> (Submit) POST to backend -> Response handling
+
+TECH STACK
+Framework: Next.js 14 (App Router)
+Language: TypeScript
+Styling: Tailwind CSS 3
+ML CV: face-api.js 0.22.x
+HTTP: fetch (axios installed, not yet used)
+Icons: react-icons (IoClose)
+Loading: react-spinners (SyncLoader)
+
+PROJECT STRUCTURE
+public/models  face-api.js model manifests and weight shards
+src/app/layout.tsx  Root layout and font setup
+src/app/page.tsx    Home page mounting Enrollment
+src/app/globals.css Tailwind imports
+src/views/Enrollment.tsx  Main face enrollment component
+src/components/ActionButton2.tsx  Reusable button
+src/components/Loader.tsx  Spinner wrapper
+tailwind.config.ts  Tailwind configuration
+package.json        Scripts and dependencies
+
+CORE COMPONENTS
+Enrollment: Handles model loading, camera setup, detection loop, capture, submission, messaging.
+ActionButton2: Stylable button using dynamic Tailwind class fragments (may require safelist).
+Loader: Presents SyncLoader spinner.
+
+FACE DETECTION LOGIC
+Models: tinyFaceDetector, faceLandmark68Net, faceRecognitionNet, faceExpressionNet.
+Loop: 1000 ms interval. Detect faces, landmarks, expressions. Resize to display size 600x1200. Filter for width >= 300 and height >= 500. Capture first qualifying frame if not yet captured. Draw detections overlay.
+
+ENVIRONMENT VARIABLES
+NEXT_PUBLIC_API_BASE_URL (required)  Base URL for backend API (example https://api.example.com)
+Define in .env.local
+
+LOCAL DEVELOPMENT
+Install: npm install
+Run dev: npm run dev
+Visit http://localhost:3000
+Ensure model files exist under public/models.
+
+BUILD AND PRODUCTION
+Build: npm run build
+Start: npm start
+Ensure environment variable present and models deployed intact. Consider CSP headers to allow camera and API endpoints.
+
+EXTENDING THE APP
+Add face matching with descriptor comparison
+Configurable thresholds for capture
+State management for multi step enrollment
+Accessibility improvements (ARIA live regions)
+Liveness detection (blink, head movement)
+Logging and telemetry layer
+Safelist dynamic Tailwind classes or replace with fixed class mapping
+
+SECURITY AND PRIVACY NOTES
+Require explicit user consent for camera usage.
+Keep images client side until submission.
+Offer delete or cancel option before upload.
+Use HTTPS always.
+Authenticate and rate limit upload endpoint.
+Consider data minimization and retention policy for biometric data.
+
+PERFORMANCE CONSIDERATIONS
+TinyFaceDetector chosen for speed.
+Interval of 1 second reduces CPU but limits responsiveness.
+Potential migration to requestAnimationFrame plus internal timing.
+Threshold sizing ties to chosen video resolution; may need adaptation on small viewports.
+
+TROUBLESHOOTING
+No camera found: Permissions denied or no hardware.
+Models never load: Check that /models JSON manifests are reachable in browser.
+Blank video: Non HTTPS origin (required except localhost).
+Styles missing: Tailwind purged dynamic classes; add safelist.
+Upload fails: Missing NEXT_PUBLIC_API_BASE_URL.
+
+FUTURE IMPROVEMENTS
+Liveness checks
+Progress UI for model loading
+Descriptor storage and duplicate detection
+Improved error boundary and fallback UI
+Unit tests for utility logic and API integration mocks
+
+FAQ
+Why store models in /public? face-api.js fetches them over HTTP; Next.js serves /public statically.
+Can detection run in a Web Worker? Yes, requires worker wrapper integration.
+Why is axios installed but unused? fetch currently handles the single POST; axios could unify error handling if expanded.
+Is there server side rendering here? Enrollment is a client only component; page shell can be server rendered but logic is browser only.
+
+QUICK REFERENCE
+Install: npm install
+Dev: npm run dev
+Build: npm run build
+Start: npm start
+
+Generated on: 2025-08-19
